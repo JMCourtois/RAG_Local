@@ -21,6 +21,7 @@ chroma_db/
 data/
 chroma_storage/
 storage/
+documents/
 
 # Distribution / packaging
 .Python
