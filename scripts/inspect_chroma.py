@@ -33,7 +33,7 @@ def inspect_database():
     try:
         # 1. Connect to the client
         client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
-        collection = client.get_collection("notion_collection")
+        collection = client.get_collection("local_files_collection")
 
         # 2. Get all documents
         all_docs = collection.get(include=["metadatas"])

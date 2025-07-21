@@ -194,7 +194,7 @@ def main():
 
     # 3. Connect to ChromaDB
     chroma_client = chromadb.PersistentClient(path=args.persist_dir)
-    chroma_collection = chroma_client.get_or_create_collection("notion_collection")
+    chroma_collection = chroma_client.get_or_create_collection("local_files_collection")
     
     if chroma_collection.count() == 0:
         print("⚠️ ChromaDB is empty. Run the ingestion script first.")
