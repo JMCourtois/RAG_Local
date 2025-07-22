@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/inspect_chunks.py - Interactively select a Notion page and inspect its stored chunks in ChromaDB.
+scripts/inspect_chunks.py - Interactively select a document and inspect its stored chunks in ChromaDB.
 """
 import os
 from dotenv import load_dotenv
@@ -11,19 +11,31 @@ from rich.text import Text
 from rich.rule import Rule
 from rich.markdown import Markdown
 import questionary
+import argparse
 
 # --- Configuration ---
 load_dotenv()
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_storage")
-CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "notion_collection")
+# Changed default to align with local file ingestion script
+CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "local_files_collection")
 
 # --- Main Application ---
 def main():
     """
     Main function to run the interactive page chunk inspector.
     """
+    parser = argparse.ArgumentParser(description="Interactively inspect document chunks in ChromaDB.")
+    parser.add_argument(
+        "--collection-name",
+        default=CHROMA_COLLECTION_NAME,
+        help=f"ChromaDB collection name (default: {CHROMA_COLLECTION_NAME})"
+    )
+    args = parser.parse_args()
+    
     console = Console()
-    console.print(Rule("[bold #5E81AC]📄 Notion Chunk Inspector[/bold #5E81AC]", style="#434C5E"))
+    console.print(Rule("[bold #5E81AC]📄 Document Chunk Inspector[/bold #5E81AC]", style="#434C5E"))
+    console.print(f"🔍 Targeting collection: [bold cyan]{args.collection_name}[/bold cyan]\n")
+
 
     # 1. Connect to ChromaDB
     if not os.path.exists(CHROMA_PERSIST_DIR):
@@ -33,7 +45,7 @@ def main():
 
     try:
         client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
-        collection = client.get_collection(name=CHROMA_COLLECTION_NAME)
+        collection = client.get_collection(name=args.collection_name)
     except Exception as e:
         console.print(f"[bold red]❌ Error connecting to ChromaDB:[/bold red] {e}")
         return
@@ -105,18 +117,19 @@ def main():
     console.print(f"\n[bold]🔍 Fetching chunks for document: [cyan]{selected_source_id}[/cyan]...[/bold]")
     
     try:
-        # We need to query with the correct key, which could be 'document_id' or 'page_id'.
-        # Since we don't know which one it is, we check if it looks like a file path.
-        # This is a heuristic but works for the current use case.
-        if os.path.sep in selected_source_id:
-             filter_key = "document_id"
-        else:
-             filter_key = "page_id"
-
+        # First, attempt to fetch using 'document_id', which is the standard for local files.
         page_chunks_result = collection.get(
-            where={filter_key: selected_source_id},
+            where={"document_id": selected_source_id},
             include=["metadatas", "documents"]
         )
+        
+        # If that returns no documents, fall back to trying 'page_id' for Notion compatibility.
+        if not page_chunks_result.get('documents'):
+            page_chunks_result = collection.get(
+                where={"page_id": selected_source_id},
+                include=["metadatas", "documents"]
+            )
+
     except Exception as e:
         console.print(f"[bold red]❌ Error fetching chunks for document {selected_source_id}:[/bold red] {e}")
         return
