@@ -1,107 +1,152 @@
-# RAG Local
+# 🚀 Local RAG Project
 
-This project is a local-first implementation for Retrieval-Augmented Generation (RAG) pipelines. 
-It allows you to ingest documents from various sources, store them in a local ChromaDB vector database, and query them using language models.
+This project provides a complete, locally-run Retrieval-Augmented Generation (RAG) pipeline. It allows you to ingest local markdown documents, store them in a ChromaDB vector database, and interact with them through a conversational AI powered by the DeepSeek API.
 
-## Features
+The entire process runs on your machine, ensuring data privacy and full control over your documents.
 
-- **Local-First**: All data (documents, vector database, history) is stored locally. No cloud services required.
-- **Multiple Data Sources**:
-  - Ingest pages and sub-pages from **Notion**.
-  - Ingest local **Markdown files**.
-- **Persistent Vector Store**: Uses ChromaDB to store document embeddings locally.
-- **Efficient Indexing**: Only re-indexes documents that have changed, saving time and computational resources.
-- **Rich CLI**: Interactive command-line interface with progress bars and status updates, powered by `rich`.
-- **Configurable**: Easily configure paths, tokens, and other settings via a `.env` file or command-line arguments.
+## ✨ Purpose
 
-## How It Works
+The main goal of this project is to offer a powerful RAG solution without relying on external services for data storage or processing. It's designed for developers, researchers, and enthusiasts who want to:
 
-The process is divided into two main stages:
+*   **Chat with their documents**: Ask questions about a local knowledge base (e.g., project notes, research papers, personal documents).
+*   **Ensure data privacy**: Keep all documents and embeddings stored locally.
+*   **Have a flexible foundation**: Easily extend and customize the RAG pipeline for different models or data sources.
 
-1.  **Ingestion**:
-    - **Discovery**: Scripts scan the source (either Notion or a local directory) to find all relevant documents.
-    - **Extraction & Enrichment**: The content of each document is extracted. For Notion pages, metadata like title, URL, and last edit time are preserved. For local files, the file path is used as metadata.
-    - **Chunking**: Documents are split into smaller text chunks (nodes) to facilitate better embedding and retrieval.
-    - **Embedding & Storage**: Each text chunk is converted into a vector embedding using a Hugging Face model (`BAAI/bge-large-en`) and stored in a local ChromaDB collection. An indexing history is maintained to keep track of changes.
+## 🌟 Features
 
-2.  **Querying**:
-    - The `scripts/query_chroma.py` script loads the existing ChromaDB database and the same embedding model.
-    - It takes a user query, embeds it, and performs a similarity search in ChromaDB to find the most relevant text chunks.
-    - These chunks are then passed to a language model (via `llama-index`) as context to generate a well-informed answer.
+*   **📁 Local Document Ingestion**: Recursively finds and processes `.md` files from a specified directory.
+*   **🧠 Vector Embeddings**: Uses `BAAI/bge-large-en` to generate high-quality embeddings for your documents.
+*   **💾 Persistent Local Storage**: Stores all vector embeddings in a local ChromaDB database.
+*   **💬 Interactive Chat**: Provides a command-line interface to chat with your knowledge base, powered by the DeepSeek API.
+*   **🔍 Source Verification**: Allows you to see the source documents that the AI used to generate its response.
+*   **🛠️ Database Inspection Tools**: Includes scripts to inspect the contents of your ChromaDB, showing which documents are indexed and how many chunks each one has.
 
-## Setup
+## ⚙️ Setup and Installation
 
-1.  **Clone the repository**:
-    ```bash
-    git clone <repository-url>
-    cd RAG_Local
-    ```
+Follow these steps to get the project up and running on your local machine.
 
-2.  **Create a virtual environment**:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
+### 1. Clone the Repository
 
-3.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+git clone <your-repository-url>
+cd RAG_Local
+```
 
-4.  **Set up environment variables**:
-    - Create a `.env` file by copying the example:
-      ```bash
-      cp env.example .env
-      ```
-    - Edit the `.env` file with your configuration:
-      - `CHROMA_PERSIST_DIR`: Path to store the ChromaDB database (e.g., `./chroma_storage`).
-      - `SOURCE_DIR`: Path to the directory containing your local markdown files (e.g., `./documents`).
-      - `CHROMA_HISTORY_PATH`: Path to the JSON file for storing indexing history (e.g., `./data/indexed_files.json`).
-      - `NOTION_INTEGRATION_TOKEN` (Optional): Your Notion integration token if you want to use the Notion ingest script.
-      - `NOTION_PAGE_ID` (Optional): The root Notion page ID to start indexing from.
+### 2. Create and Activate a Virtual Environment
 
-## Usage
+It's highly recommended to use a virtual environment to manage project dependencies.
 
-### Ingesting Local Markdown Files
+```bash
+# Create the virtual environment
+python3 -m venv venv
 
-This is the recommended approach for using local files as your knowledge base.
+# Activate it (on macOS/Linux)
+source venv/bin/activate
 
-- **Command**:
-  ```bash
-  python3 scripts/local_to_chroma.py
-  ```
+# On Windows, use:
+# venv\Scripts\activate
+```
 
-- **Description**:
-  This script recursively finds all `.md` files in the `SOURCE_DIR`, checks them against the indexing history, and embeds any new or modified files into ChromaDB.
+### 3. Install Dependencies
 
-- **Arguments**:
-  - `--source-dir`: The directory to scan for markdown files. Defaults to `./documents`.
-  - `--persist-dir`: The directory where ChromaDB is stored. Defaults to `./chroma_storage`.
-  - `--history-path`: Path to the indexing history file. Defaults to `./data/indexed_files.json`.
-  - `--collection-name`: The name of the ChromaDB collection to use. Defaults to `local_files_collection`.
-  - `--force-reindex`: Force the script to re-index all documents, regardless of modification time.
-  - `--reset-chroma`: Deletes the existing ChromaDB database and history before running. Useful for starting fresh.
+Install all the required Python packages using the `requirements.txt` file.
 
-### Ingesting from Notion (Legacy)
+```bash
+pip install -r requirements.txt
+```
 
-- **Command**:
-  ```bash
-  python3 scripts/notion_to_chroma.py
-  ```
-- **Arguments**:
-  - `--notion-token`: Your Notion integration token.
-  - `--notion-page-id`: The root Notion page ID.
-  - `--reset-chroma`: Deletes the database and history before running.
+### 4. Configure Environment Variables
 
-### Querying Your Documents
+The project uses an `.env` file to manage API keys and other configuration settings.
 
-Once your documents are indexed, you can ask questions using the query script.
+First, create a copy of the example file:
 
-- **Command**:
-  ```bash
-  python3 scripts/query_chroma.py "Your question here"
-  ```
-- **Arguments**:
-  - `--collection-name`: Specify the collection you want to query (`local_files_collection` for local files, `notion_collection` for Notion).
+```bash
+cp env.example .env
+```
 
-This will use the indexed documents as context to answer your question.
+Next, open the `.env` file and add your **DeepSeek API Key**.
+
+```env
+# .env
+
+# --- API Keys ---
+# Get your key from: https://platform.deepseek.com/
+DEEPSEEK_API_KEY="your_deepseek_api_key_here"
+
+# --- System Configuration ---
+# The prompt for the chat model
+SYSTEM_PROMPT="You are a helpful AI assistant. Answer the user's questions based on the provided context."
+
+# --- Local Storage Paths ---
+# Directory where ChromaDB will store its data
+CHROMA_PERSIST_DIR="./chroma_storage"
+# Directory where your source markdown files are located
+SOURCE_DIR="./documents"
+
+# --- ChromaDB Configuration ---
+# Name of the collection within ChromaDB
+CHROMA_COLLECTION_NAME="local_files_collection"
+
+# --- Embedding Model ---
+# The HuggingFace model used for generating embeddings
+EMBED_MODEL="BAAI/bge-large-en"
+```
+
+## 🚀 Usage
+
+Using the project involves two main steps: ingesting your documents and then querying them.
+
+### Step 1: Ingest Your Documents
+
+First, place all your markdown (`.md`) files inside the `documents/` directory. The script can handle nested folders.
+
+Once your files are in place, run the ingestion script. This will read your files, split them into chunks, generate embeddings, and store them in your local ChromaDB.
+
+```bash
+python scripts/local_to_chroma.py
+```
+
+If you ever want to start from scratch, you can use the `--reset-chroma` flag to delete the existing database before indexing.
+
+```bash
+python scripts/local_to_chroma.py --reset-chroma
+```
+
+### Step 2: Chat with Your Documents
+
+After ingesting your documents, you can start asking questions. Run the query script to start an interactive chat session.
+
+```bash
+python scripts/query_chroma.py
+```
+
+The script will load the index from ChromaDB and connect to the DeepSeek API. You can then ask questions in the terminal.
+
+To see which parts of your documents the AI is using for its answers, use the `--sources` flag.
+
+```bash
+python scripts/query_chroma.py --sources
+```
+
+### Utility Scripts
+
+This project includes helpful scripts for inspecting your database.
+
+#### Inspect ChromaDB Summary
+
+To get a high-level summary of what's in your database (which documents are indexed and how many chunks they have), run:
+
+```bash
+python scripts/inspect_chroma.py
+```
+
+#### Inspect Document Chunks
+
+To see the actual text content of the chunks for a specific document, use this interactive script:
+
+```bash
+python scripts/inspect_chunks.py
+```
+
+It will present you with a list of indexed documents, and you can select one to see its chunks in detail.
