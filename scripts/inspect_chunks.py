@@ -56,37 +56,40 @@ def main():
     pages = {}
     for meta in all_metadatas:
         if isinstance(meta, dict):
-            page_id = meta.get("page_id")
-            if page_id:
-                title = meta.get("title", f"Untitled Page ({page_id[:8]}...)")
-                pages[page_id] = title
+            # Prioritize document_id for local files, fall back to page_id for Notion
+            source_id = meta.get("document_id") or meta.get("page_id")
+            if source_id:
+                # Use the full source_id (like a file path) as the key
+                # and get the title from metadata, or create a default one.
+                title = meta.get("title", f"Untitled Document ({source_id})")
+                pages[source_id] = title
 
     if not pages:
-        console.print("[bold yellow]⚠️ No pages with valid 'page_id' metadata found in the database.[/bold yellow]")
+        console.print("[bold yellow]⚠️ No documents with a valid 'document_id' or 'page_id' found.[/bold yellow]")
         return
         
-    # 4. Create choices for questionary and sort them
+    # 4. Create choices for questionary, showing the full source_id for clarity
     choices = [
         questionary.Choice(
-            title=f"{title} [ID: ...{page_id[-3:]}]",
-            value=page_id
-        ) for page_id, title in pages.items()
+            title=f"{title} [ID: {source_id}]", # Display full path/ID
+            value=source_id
+        ) for source_id, title in pages.items()
     ]
     # Sort choices alphabetically by title
     choices.sort(key=lambda x: x.title)
 
     # 5. Present the interactive selector
     try:
-        selected_page_id = questionary.select(
-            "Select a page to inspect its chunks:",
+        selected_source_id = questionary.select(
+            "Select a document to inspect its chunks:",
             choices=choices,
             use_indicator=True,
             style=questionary.Style([
                 ('qmark', 'fg:#5E81AC bold'),
                 ('question', 'bold white'),
                 ('pointer', 'fg:#5E81AC bold'),
-                ('highlighted', 'fg:white bg:#3B4252'), # Subtle background
-                ('selected', 'fg:white'), # Cleaner look, no bold
+                ('highlighted', 'fg:white bg:#3B4252'),
+                ('selected', 'fg:white'),
                 ('answer', 'fg:#88C0D0 bold'),
             ])
         ).ask()
@@ -94,31 +97,39 @@ def main():
         console.print("\n[bold yellow]👋 Operation cancelled by user.[/bold yellow]")
         return
 
-    if not selected_page_id:
-        console.print("[bold yellow]👋 No page selected. Exiting.[/bold yellow]")
+    if not selected_source_id:
+        console.print("[bold yellow]👋 No document selected. Exiting.[/bold yellow]")
         return
 
-    # 6. Fetch and display chunks for the selected page
-    console.print(f"\n[bold]🔍 Fetching chunks for page ID: [cyan]{selected_page_id}[/cyan]...[/bold]")
+    # 6. Fetch and display chunks for the selected document
+    console.print(f"\n[bold]🔍 Fetching chunks for document: [cyan]{selected_source_id}[/cyan]...[/bold]")
     
     try:
+        # We need to query with the correct key, which could be 'document_id' or 'page_id'.
+        # Since we don't know which one it is, we check if it looks like a file path.
+        # This is a heuristic but works for the current use case.
+        if os.path.sep in selected_source_id:
+             filter_key = "document_id"
+        else:
+             filter_key = "page_id"
+
         page_chunks_result = collection.get(
-            where={"page_id": selected_page_id},
+            where={filter_key: selected_source_id},
             include=["metadatas", "documents"]
         )
     except Exception as e:
-        console.print(f"[bold red]❌ Error fetching chunks for page {selected_page_id}:[/bold red] {e}")
+        console.print(f"[bold red]❌ Error fetching chunks for document {selected_source_id}:[/bold red] {e}")
         return
 
     documents = page_chunks_result.get('documents')
     chunk_metadatas = page_chunks_result.get('metadatas')
 
     if not documents or not chunk_metadatas:
-        console.print(f"[bold yellow]🤷 No chunks found for page ID: [cyan]{selected_page_id}[/cyan][/bold yellow]")
+        console.print(f"[bold yellow]🤷 No chunks found for document: [cyan]{selected_source_id}[/cyan][/bold yellow]")
         return
 
-    page_title = pages.get(selected_page_id, "Unknown Title")
-    console.print(f"[bold green]✅ Found {len(documents)} chunk(s) for page '[bold white]{page_title}[/bold white]'[/bold green]")
+    page_title = pages.get(selected_source_id, "Unknown Title")
+    console.print(f"[bold green]✅ Found {len(documents)} chunk(s) for document '[bold white]{page_title}[/bold white]'[/bold green]")
     console.print(Rule(style="#434C5E"))
 
     for i, (doc, meta) in enumerate(zip(documents, chunk_metadatas)):

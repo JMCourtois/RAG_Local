@@ -49,7 +49,8 @@ def inspect_database():
         all_metadatas = all_docs.get('metadatas', []) or []
         
         for meta in all_metadatas:
-            page_id = str(meta.get('page_id', 'Unknown_ID'))
+            # Use 'document_id' for local files, but fall back to 'page_id' for Notion compatibility
+            page_id = str(meta.get('document_id') or meta.get('page_id', 'Unknown_ID'))
             # Ensure count is treated as an integer before incrementing
             current_count = int(pages_summary[page_id].get('count', 0))
             pages_summary[page_id]['count'] = current_count + 1
@@ -58,18 +59,18 @@ def inspect_database():
                 pages_summary[page_id]['title'] = str(meta.get('title'))
 
         # 4. Create and display the table
-        table = Table(title=f"📊 Summary: {total_docs} Chunks Across {len(pages_summary)} Pages",
+        table = Table(title=f"📊 Summary: {total_docs} Chunks Across {len(pages_summary)} Sources",
                       show_header=True, header_style="bold magenta")
-        table.add_column("PageID", style="dim", width=6)
-        table.add_column("Page Title", style="cyan", no_wrap=False)
+        table.add_column("Source ID", style="dim", width=12)
+        table.add_column("Title", style="cyan", no_wrap=False)
         table.add_column("Chunk Count", justify="right", style="green")
 
         # Sort pages by title for consistent order
         sorted_pages = sorted(pages_summary.items(), key=lambda item: item[1]['title'])
 
         for page_id, data in sorted_pages:
-            # Show last 3 chars of ID for quick reference
-            short_id = f"...{page_id[-3:]}" if len(page_id) > 3 else page_id
+            # Show last 4 chars of ID for quick reference
+            short_id = f"...{page_id[-4:]}" if len(page_id) > 4 else page_id
             table.add_row(short_id, str(data['title']), str(data['count']))
         
         console.print(table)

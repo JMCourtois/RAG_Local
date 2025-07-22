@@ -117,17 +117,19 @@ def print_source_nodes_compressed(source_nodes):
 
     rprint("\n[bold]--- Source Documents ---[/bold]")
     for i, source_node in enumerate(source_nodes):
-        page_id = source_node.node.metadata.get("page_id", "N/A")
+        # Use 'document_id' for local files, but fall back to 'page_id' for Notion compatibility
+        source_id = source_node.node.metadata.get("document_id") or source_node.node.metadata.get("page_id", "N/A")
         title = source_node.node.metadata.get("title", "No Title")
         score = source_node.score
         
-        pid_suffix = page_id[-3:] if page_id != "N/A" else "N/A"
+        # Show last 4 chars of ID for quick reference
+        short_id = f"...{source_id[-4:]}" if len(source_id) > 4 else source_id
         
         header = Text()
         header.append(f"{i+1}º ", style="bold white")
         header.append(f"{score:.2f}", style="cyan")
-        header.append(" - pID: ", style="white")
-        header.append(f"{pid_suffix}", style="yellow")
+        header.append(" - ID: ", style="white")
+        header.append(f"{short_id}", style="yellow")
         header.append(f" - {title}", style="bold magenta")
 
         content = source_node.node.get_content().strip().replace('\n', ' ')
