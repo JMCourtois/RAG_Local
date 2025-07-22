@@ -117,29 +117,31 @@ def print_source_nodes_compressed(source_nodes):
 
     rprint("\n[bold]--- Source Documents ---[/bold]")
     for i, source_node in enumerate(source_nodes):
-        # Use 'document_id' for local files, but fall back to 'page_id' for Notion compatibility
-        source_id = source_node.node.metadata.get("document_id") or source_node.node.metadata.get("page_id", "N/A")
+        # Metadata from local files will use 'document_id'
+        source_id = source_node.node.metadata.get("document_id", "N/A")
         title = source_node.node.metadata.get("title", "No Title")
         score = source_node.score
         
-        # Show last 4 chars of ID for quick reference
-        short_id = f"...{source_id[-4:]}" if len(source_id) > 4 else source_id
-        
+        # Display the full source_id (file path) for clarity
         header = Text()
         header.append(f"{i+1}º ", style="bold white")
         header.append(f"{score:.2f}", style="cyan")
-        header.append(" - ID: ", style="white")
-        header.append(f"{short_id}", style="yellow")
         header.append(f" - {title}", style="bold magenta")
+        
+        # Add the full file path below the header
+        path_text = Text(f"  Source: {source_id}", style="dim")
 
         content = source_node.node.get_content().strip().replace('\n', ' ')
         snippet = f"'{content[:180]}...'"
 
         text_content = Text.from_markup(f"[bright_black]{snippet}[/bright_black]")
         text_content.no_wrap = True
+        
+        # Group path and snippet for better layout
+        grouped_content = Text("\n").join([path_text, text_content])
 
         rprint(Panel(
-            text_content,
+            grouped_content,
             title=header,
             border_style="dim",
             expand=False
@@ -237,7 +239,7 @@ def main():
     )
 
     rprint("[grey50]" + "-" * 50 + "[/grey50]")
-    rprint("💬 [bold]Ask questions about your Notion documents.[/bold] Type '[bold red]exit[/bold red]' or '[bold red]quit[/bold red]' to end.")
+    rprint("💬 [bold]Ask questions about your documents.[/bold] Type '[bold red]exit[/bold red]' or '[bold red]quit[/bold red]' to end.")
 
     try:
         while True:
