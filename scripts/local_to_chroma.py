@@ -68,21 +68,41 @@ def main():
     console.print("\n📖 [bold]Loading documents from source directory...[/bold]")
     
     try:
-        # Use SimpleDirectoryReader to recursively load all .md files
-        reader = SimpleDirectoryReader(
-            input_dir=args.source_dir,
-            required_exts=[".md"],
-            recursive=True
-        )
+        files_to_process = []
+        console.print("🔍 Discovering markdown files...")
+        for root, _, files in os.walk(args.source_dir):
+            for file in files:
+                if file.endswith(".md"):
+                    files_to_process.append(os.path.join(root, file))
         
-        docs = reader.load_data()
+        console.print(f"✅ Found {len(files_to_process)} markdown files to process.")
 
-        if not docs:
+        if not files_to_process:
             console.print("[yellow]⚠️ No markdown files found in the source directory. Exiting.[/yellow]")
             return
-        
-        console.print(f"✅ Found {len(docs)} documents:")
 
+        docs = []
+        with Progress(
+            SpinnerColumn(), BarColumn(), "[progress.percentage]{task.percentage:>3.0f}%",
+            TextColumn("[cyan]{task.description}[/cyan]"), transient=True
+        ) as progress:
+            task = progress.add_task("[green]Loading documents...", total=len(files_to_process))
+            for file_path in files_to_process:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                    
+                    doc = Document(text=text, id_=file_path)
+                    file_name = os.path.basename(file_path)
+                    doc.metadata['file_path'] = file_path
+                    doc.metadata['file_name'] = file_name
+                    docs.append(doc)
+                except Exception as e:
+                    console.print(f"⚠️ [yellow]Skipping file {file_path} due to error: {e}[/yellow]")
+                progress.update(task, advance=1)
+
+        console.print(f"✅ Loaded {len(docs)} documents:")
+        
         # Add metadata and print discovered files for better feedback
         for doc in docs:
             file_path = doc.id_
@@ -92,7 +112,6 @@ def main():
             title = os.path.splitext(file_name)[0]
 
             # Enhance metadata for the inspector script
-            doc.metadata['file_path'] = file_path
             doc.metadata['title'] = title
             doc.metadata['document_id'] = file_path # Use path as a unique ID for grouping
 
@@ -122,42 +141,50 @@ def main():
     chroma_collection = db.get_or_create_collection(args.collection_name)
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 
-    # --- 4. Create and Populate the Index ---
-    console.print("\n📚 Creating/updating index in ChromaDB...")
+    # --- 4. Create Index and Parse Nodes ---
+    console.print("\n📚 Parsing documents into text nodes (chunks)...")
     
-    # We will now follow a more explicit, manual indexing process similar to the Notion script
-    # to ensure data is persisted correctly.
-
-    # Step 1: Manually parse documents into nodes
     with Progress(
         SpinnerColumn(), BarColumn(), "[progress.percentage]{task.percentage:>3.0f}%",
         TextColumn("[cyan]{task.description}[/cyan]"), transient=True
     ) as progress:
-        task = progress.add_task("[green]Parsing documents into nodes...", total=len(docs))
+        task = progress.add_task("[green]Parsing documents...", total=len(docs))
         nodes = []
         for doc in docs:
             nodes.extend(Settings.node_parser.get_nodes_from_documents([doc]))
             progress.update(task, advance=1)
     
-    console.print(f"  [dim]‣ Generated {len(nodes)} text nodes (chunks).[/dim]")
+    console.print(f"  [dim]‣ Generated {len(nodes)} text nodes.[/dim]")
 
-    # Step 2: Get the index from the vector store
+    # --- 5. Generate Embeddings & Insert into ChromaDB ---
     index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
-    # Step 3: Insert nodes in batches with a progress bar for accurate feedback
+    console.print("\n🔬 [bold]Generating embeddings for text nodes...[/bold]")
+    console.print("[dim]This may take a while depending on the number of nodes and your hardware.[/dim]")
+    embed_model = Settings.embed_model
+    node_texts = [node.get_content() for node in nodes]
+    
+    embeddings = embed_model.get_text_embedding_batch(node_texts, show_progress=True)
+
+    for node, embedding in zip(nodes, embeddings):
+        node.embedding = embedding
+    
+    console.print("✅ Embeddings generated.")
+    
+    console.print("\n💾 [bold]Inserting nodes into ChromaDB...[/bold]")
     with Progress(
         SpinnerColumn(), BarColumn(), "[progress.percentage]{task.percentage:>3.0f}%",
         TextColumn("[cyan]{task.description}[/cyan] [bold]({task.completed} of {task.total})[/bold]"),
     ) as progress:
-        task = progress.add_task("[green]Embedding & Indexing...", total=len(nodes))
-        batch_size = 32  # Adjustable batch size
+        task = progress.add_task("[green]Indexing nodes...", total=len(nodes))
+        batch_size = 128
         for i in range(0, len(nodes), batch_size):
             batch = nodes[i:i+batch_size]
             index.insert_nodes(batch)
             progress.update(task, advance=len(batch))
     
-    # --- 5. Final Summary ---
-    console.print("✅ Indexing finished. Re-loading collection to get latest count...")
+    # --- 6. Final Summary ---
+    console.print("\n✅ Indexing finished. Re-loading collection to get latest count...")
 
     # Re-initialize the client to get the latest state after indexing
     final_db = PersistentClient(path=args.persist_dir, settings=ChromaSettings())
@@ -171,8 +198,9 @@ def main():
     summary_table.add_column("Metric", style="dim", width=25)
     summary_table.add_column("Value", style="bold")
     
-    summary_table.add_row("Documents Indexed", str(len(docs)))
-    summary_table.add_row("Total Docs in DB", str(final_count))
+    summary_table.add_row("Documents Processed", str(len(docs)))
+    summary_table.add_row("Text Nodes Generated", str(len(nodes)))
+    summary_table.add_row("Nodes in DB", str(final_count))
     summary_table.add_row("Total Time", f"{total_time:.2f} seconds")
     
     console.print(summary_table)
