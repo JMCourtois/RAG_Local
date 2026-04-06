@@ -110,6 +110,42 @@ Directory where source `.md` and `.txt` files are read from.
 When to change it:
 Change it if your documents live in another folder inside the workspace.
 
+Alternate mode:
+
+```env
+RAG_SOURCE_DIR=..
+```
+
+When `RAG_SOURCE_DIR` points to an ancestor of the current RAG workspace, the app automatically excludes the current RAG project folder from indexing. This is the recommended setup when the RAG project lives inside a larger workspace and should index sibling folders instead of `./knowledge_base`.
+
+#### `RAG_SOURCE_EXCLUDE_PATHS`
+
+Default:
+
+Not set explicitly by default.
+
+What it does:
+Adds extra exclusions relative to `RAG_SOURCE_DIR`.
+
+Example:
+
+```env
+RAG_SOURCE_EXCLUDE_PATHS=Archive,tmp/generated
+```
+
+Rules:
+
+- paths are relative to `RAG_SOURCE_DIR`
+- paths are subtree exclusions
+- absolute paths are not supported
+- `..` is not supported in these entries
+
+What is excluded automatically:
+
+- hidden paths such as `.git` or `.rag`
+- common tool and cache directories such as `venv`, `.venv`, `node_modules`, `__pycache__`, `build`, `dist`
+- the current RAG project folder itself when `RAG_SOURCE_DIR` points above it
+
 #### `RAG_STORAGE_DIR`
 
 Default:

@@ -33,6 +33,27 @@ workspace-root/
 - `AGENTS.md`
   - workspace bootstrap guide for OpenClaw-compatible agents
 
+## Alternate Source Mode
+
+The default source root is:
+
+```env
+RAG_SOURCE_DIR=./knowledge_base
+```
+
+You can also point the source root to the parent project root:
+
+```env
+RAG_SOURCE_DIR=..
+```
+
+In that mode:
+
+- sibling folders can be indexed
+- root-level `.md` and `.txt` files in the parent project root can be indexed
+- the current RAG project folder is automatically excluded, so the project does not index itself
+- additional exclusions can be added with `RAG_SOURCE_EXCLUDE_PATHS`
+
 ## What Openclaw Should Touch
 
 Openclaw should:
@@ -53,4 +74,4 @@ The project is workspace-relative by default. If you copy the whole project into
 
 - dependencies are installed
 - `.env` is configured
-- source files exist under `knowledge_base/`
+- source files exist under `knowledge_base/`, or `RAG_SOURCE_DIR` points to the source root you want to scan

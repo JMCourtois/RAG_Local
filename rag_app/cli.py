@@ -14,6 +14,7 @@ from rich.text import Text
 
 from .config import AppConfig, ensure_workspace_layout, load_config
 from .indexing import ingest_workspace
+from .loaders import discover_source_files
 from .llm import LLMConfigurationError, answer_question
 from .models import RetrievedChunk
 from .retrieval import EmptyIndexError, retrieve_chunks
@@ -103,6 +104,15 @@ def _payload_to_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
+def _format_source_exclusions(config: AppConfig) -> str:
+    if not config.effective_source_exclude_paths:
+        return "[dim]none[/dim]"
+    formatted = ", ".join(f"[cyan]{path}[/cyan]" for path in config.effective_source_exclude_paths)
+    if config.workspace_root_auto_excluded:
+        return f"{formatted} [dim](includes automatic workspace exclusion)[/dim]"
+    return formatted
+
+
 def _query_once(
     config: AppConfig,
     question: str,
@@ -154,7 +164,8 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
     if not args.json:
         console.print(Panel("Workspace RAG Ingestion", border_style="green", expand=False))
-        console.print(f"Source directory: [cyan]{config.source_dir}[/cyan]")
+        console.print(f"Source root: [cyan]{config.source_dir}[/cyan]")
+        console.print(f"Source exclusions: {_format_source_exclusions(config)}")
         console.print(f"Chroma directory: [cyan]{config.chroma_dir}[/cyan]")
         console.print(f"Collection: [cyan]{config.collection_name}[/cyan]")
         console.print(f"Embedding model: [cyan]{config.embed_model}[/cyan]")
@@ -379,7 +390,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ensure_workspace_layout(config)
     manifest = load_manifest(config)
     collection = get_collection(config)
-    source_files = sorted(path.as_posix() for path in config.source_dir.rglob("*") if path.is_file())
+    source_files = sorted(path.as_posix() for path in discover_source_files(config))
     payload = {
         "config": config.to_public_dict(),
         "checks": {
@@ -406,6 +417,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         table.add_row(key.replace("_", " ").title(), str(value))
     console.print(table)
     console.print(f"Workspace root: [cyan]{config.workspace_root}[/cyan]")
+    console.print(f"Source root: [cyan]{config.source_dir}[/cyan]")
+    console.print(f"Source exclusions: {_format_source_exclusions(config)}")
     console.print(f"Collection: [cyan]{config.collection_name}[/cyan]")
     console.print(f"Embedding model: [cyan]{config.embed_model}[/cyan]")
     console.print(f"LLM provider/model: [cyan]{config.llm_provider} / {config.llm_model}[/cyan]")

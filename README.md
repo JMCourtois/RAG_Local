@@ -26,6 +26,14 @@ python -m rag_app inspect
 python -m rag_app doctor
 ```
 
+If you want to index the parent project root instead of `./knowledge_base`, set:
+
+```env
+RAG_SOURCE_DIR=..
+```
+
+In that mode, the app will scan sibling folders and root-level `.md` / `.txt` files in the parent project root, while automatically excluding the RAG project folder itself from indexing.
+
 ## Reset And Rebuild The Index
 
 Normal ingestion is incremental, so running `python -m rag_app ingest` will only add new files, update changed files, and remove deleted files.

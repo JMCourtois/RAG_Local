@@ -36,10 +36,61 @@ def _safe_filename(value: str) -> str:
     return "".join(char if char.isalnum() or char in {"-", "_"} else "-" for char in value)
 
 
+def _normalize_relative_source_path(value: str) -> str:
+    normalized = Path(value.strip())
+    if not str(normalized) or str(normalized) == ".":
+        raise ValueError("Source exclude paths must not be empty.")
+    if normalized.is_absolute():
+        raise ValueError("RAG_SOURCE_EXCLUDE_PATHS entries must be relative to RAG_SOURCE_DIR.")
+    if ".." in normalized.parts:
+        raise ValueError("RAG_SOURCE_EXCLUDE_PATHS entries must not contain '..'.")
+    return normalized.as_posix()
+
+
+def _parse_relative_source_paths(value: str | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    paths: list[str] = []
+    seen: set[str] = set()
+    for raw_item in value.split(","):
+        raw_item = raw_item.strip()
+        if not raw_item:
+            continue
+        normalized = _normalize_relative_source_path(raw_item)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        paths.append(normalized)
+    return tuple(paths)
+
+
+def _is_ancestor_path(ancestor: Path, candidate: Path) -> bool:
+    try:
+        candidate.relative_to(ancestor)
+        return True
+    except ValueError:
+        return False
+
+
+def _combine_exclusion_paths(*groups: tuple[str, ...]) -> tuple[str, ...]:
+    combined: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        for item in group:
+            if item in seen:
+                continue
+            seen.add(item)
+            combined.append(item)
+    return tuple(combined)
+
+
 @dataclass(frozen=True, slots=True)
 class AppConfig:
     workspace_root: Path
     source_dir: Path
+    source_exclude_paths: tuple[str, ...]
+    effective_source_exclude_paths: tuple[str, ...]
+    workspace_root_auto_excluded: bool
     storage_dir: Path
     chroma_dir: Path
     model_cache_dir: Path
@@ -66,6 +117,9 @@ class AppConfig:
         return {
             "workspace_root": str(self.workspace_root),
             "source_dir": str(self.source_dir),
+            "source_exclude_paths": list(self.source_exclude_paths),
+            "effective_source_exclude_paths": list(self.effective_source_exclude_paths),
+            "workspace_root_auto_excluded": self.workspace_root_auto_excluded,
             "storage_dir": str(self.storage_dir),
             "chroma_dir": str(self.chroma_dir),
             "model_cache_dir": str(self.model_cache_dir),
@@ -140,12 +194,24 @@ def load_config(workspace: str | None = None, overrides: dict[str, Any] | None =
             "workspace_rag",
         )
     )
+    source_dir = _resolve_path(source_dir_value, workspace_root)
+    source_exclude_paths = _parse_relative_source_paths(
+        _coalesce(overrides.get("source_exclude_paths"), os.getenv("RAG_SOURCE_EXCLUDE_PATHS"))
+    )
+    workspace_root_auto_excluded = source_dir != workspace_root and _is_ancestor_path(source_dir, workspace_root)
+    auto_exclude_paths = (
+        (workspace_root.relative_to(source_dir).as_posix(),) if workspace_root_auto_excluded else ()
+    )
+    effective_source_exclude_paths = _combine_exclusion_paths(source_exclude_paths, auto_exclude_paths)
     state_dir = _resolve_path(state_dir_value, workspace_root)
     manifest_path = state_dir / f"manifest-{_safe_filename(collection_name)}.json"
 
     return AppConfig(
         workspace_root=workspace_root,
-        source_dir=_resolve_path(source_dir_value, workspace_root),
+        source_dir=source_dir,
+        source_exclude_paths=source_exclude_paths,
+        effective_source_exclude_paths=effective_source_exclude_paths,
+        workspace_root_auto_excluded=workspace_root_auto_excluded,
         storage_dir=storage_dir,
         chroma_dir=_resolve_path(chroma_dir_value, workspace_root),
         model_cache_dir=_resolve_path(model_cache_dir_value, workspace_root),

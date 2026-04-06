@@ -8,6 +8,7 @@ For a full variable-by-variable explanation, see [env-reference.md](env-referenc
 
 ```env
 RAG_SOURCE_DIR=./knowledge_base
+RAG_SOURCE_EXCLUDE_PATHS=
 RAG_STORAGE_DIR=./.rag
 RAG_CHROMA_DIR=./.rag/chroma
 RAG_MODEL_CACHE_DIR=./.rag/cache
@@ -21,6 +22,30 @@ RAG_LLM_TIMEOUT_SECONDS=60
 MINIMAX_API_KEY=your_minimax_api_key_here
 SYSTEM_PROMPT="..."
 ```
+
+## Source Selection Modes
+
+Default mode:
+
+```env
+RAG_SOURCE_DIR=./knowledge_base
+```
+
+Parent-root mode:
+
+```env
+RAG_SOURCE_DIR=..
+```
+
+When `RAG_SOURCE_DIR` points above the current RAG workspace, the loader automatically excludes the current RAG project folder from indexing. This lets the project live inside a larger workspace and index sibling folders instead of indexing itself.
+
+Optional extra exclusions:
+
+```env
+RAG_SOURCE_EXCLUDE_PATHS=Archive,tmp/generated
+```
+
+These paths are relative to `RAG_SOURCE_DIR`.
 
 ## MiniMax Setup
 
